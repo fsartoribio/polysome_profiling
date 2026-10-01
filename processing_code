@@ -1,0 +1,310 @@
+#install all necessary tools:
+    pip install cutadapt
+    #cutadapt --version = 5.1
+    pip install umi_tools
+    #umi_tools --version = 1.1.6
+    sudo apt install rna-star
+    #STAR --version = 2.7.11b
+    sudo apt install bowtie2
+    #/usr/bin/bowtie2-align-s version 2.5.2 64-bit
+    sudo apt install gffread
+    #gffread --version #= gffread v0.12.7
+
+
+
+
+
+
+#Step1: Copy fasta files to vm from blob storage
+    azcopy cp 'https://spliceprepraw.blob.core.windows.net/raw/celline-wetlabpoly301218919547/1/SMP.325f44c03d11cfd66660ec304ba50677_1.fastq.gz' /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/raw_fasta/
+
+#Step2: extract UMI using umi tools and trim using Cutadapt
+
+
+umi_tools extract \
+  --stdin /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/raw_fasta/SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq.gz \
+  --stdout /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/umi_extracted_H661_1.fastq.gz \
+  --read2-in /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/raw_fasta/SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq.gz \
+  --read2-out /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/umi_extracted_H661_2.fastq.gz \
+  --bc-pattern=NNNN --bc-pattern2=NNNN \
+  --log /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/H661_umi_extract.log
+
+
+
+umi_tools extract \
+  --stdin /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/raw_fasta/SMP.325f44c03d11cfd66660ec304ba50677_1.fastq.gz \
+  --stdout /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/umi_extracted_H1573_1.fastq.gz \
+  --read2-in /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/raw_fasta/SMP.325f44c03d11cfd66660ec304ba50677_2.fastq.gz \
+  --read2-out /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/umi_extracted_H1573_2.fastq.gz \
+  --bc-pattern=NNNN --bc-pattern2=NNNN \
+  --log /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/H1573_umi_extract.log
+
+
+
+#Step3: Trim adapters and low quality bases using Cutadapt
+
+
+ADAPT=TCTCCTTGCATAATCACCAACC
+RCADAPT=GGTTGGTGATTATGCAAGGAGA
+ILL_R1=AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+ILL_R2=AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+cutadapt -j 4 \
+  -g "^${RCADAPT}" -G "^${ADAPT}" \
+  -b "${ADAPT}"    -B "${ADAPT}" \
+  -b "TCCTTGCATAATCACCAACC"   -B "TCCTTGCATAATCACCAACC" \
+  -a "${ILL_R1}"   -A "${ILL_R2}" \
+  --overlap 8 --error-rate 0.1 \
+  -q 20 -m 25 --pair-filter=any --trim-n \
+  -o /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_1.trim.fastq.gz \
+  -p /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_2.trim.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/umi_extracted_H661_1.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/umi_extracted_H661_2.fastq.gz \
+  > /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_cutadapt.log 2>&1
+
+cutadapt -j 4 \
+  -g "^${RCADAPT}" -G "^${ADAPT}" \
+  -b "${ADAPT}"    -B "${ADAPT}" \
+  -b "TCCTTGCATAATCACCAACC"   -B "TCCTTGCATAATCACCAACC" \
+  -a "${ILL_R1}"   -A "${ILL_R2}" \
+  --overlap 8 --error-rate 0.1 \
+  -q 20 -m 25 --pair-filter=any --trim-n \
+  -o /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_1.trim.fastq.gz \
+  -p /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_2.trim.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/umi_extracted_H1573_1.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/extract_UMI/umi_extracted_H1573_2.fastq.gz \
+  > /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_cutadapt.log 2>&1
+
+
+
+
+
+
+#T removal
+
+
+  cutadapt -j 4 -u 1 -U 0 \
+  -o /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_1.u1.fastq.gz \
+  -p /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_2.u1.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_1.trim.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_2.trim.fastq.gz
+
+
+cutadapt -j 4 -u 1 -U 0 \
+  -o /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_1.u1.fastq.gz \
+  -p /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_2.u1.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_1.trim.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_2.trim.fastq.gz
+
+
+#final UMI extraction
+
+umi_tools extract \
+  --extract-method=regex \
+  --bc-pattern='(?P<seq_1>.*)(?P<umi_1>.{4})$' \
+  --bc-pattern2='(?P<seq_2>.*)(?P<umi_2>.{4})$' \
+  --stdin     /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_1.u1.fastq.gz \
+  --read2-in  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_2.u1.fastq.gz \
+  --stdout    /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_1.u1.umi3p.fastq.gz \
+  --read2-out /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_2.u1.umi3p.fastq.gz \
+  --log       /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_umi_extract_3p.log
+
+
+  umi_tools extract \
+  --extract-method=regex \
+  --bc-pattern='(?P<seq_1>.*)(?P<umi_1>.{4})$' \
+  --bc-pattern2='(?P<seq_2>.*)(?P<umi_2>.{4})$' \
+  --stdin     /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_1.u1.fastq.gz \
+  --read2-in  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_2.u1.fastq.gz \
+  --stdout    /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_1.u1.umi3p.fastq.gz \
+  --read2-out /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_2.u1.umi3p.fastq.gz \
+  --log       /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_umi_extract_3p.log
+
+
+#fastqc still shows a 5' adapter/primer scar on the reverse reads only, so final round of trimming:
+
+
+cutadapt -j 4 \
+  -u 0 -U 10 \
+  -o /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_1.trim10.fastq.gz \
+  -p /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_2.trim10.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_1.u1.umi3p.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_2.u1.umi3p.fastq.gz \
+  > /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H1573_trim10.log 2>&1
+
+
+
+utadapt -j 4 \
+  -u 0 -U 10 \
+  -o /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_1.trim10.fastq.gz \
+  -p /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_2.trim10.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_1.u1.umi3p.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_2.u1.umi3p.fastq.gz \
+  > /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim_after_extract/H661_trim10.log 2>&1
+
+#Step 4 remove contaminating RNAs
+
+##Build bowtie2 index
+    #bowtie2-build /mnt/targetdiscovery/references/hg38/GRCh38.primary_assembly.genome.fa /mnt/targetdiscovery/references/hg38/GRCh38.primary_assembly.genome
+
+    bowtie2-build --threads 4 -f /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/Homo_sapiens.GRCh38.ncrna.fa.gz /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/ncRNA_index
+    bowtie2-build --threads 4 -f /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/4V6X_human_rRNAs.fa /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/rRNA_index
+    bowtie2-build --threads 4 -f /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/hg38-tRNAs.fa /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/tRNA_index
+    bowtie2-build --threads 4 -f /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/hg38-mature-tRNAs.fa /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/maturetRNA_index
+
+#create combined contamination reference
+zcat Homo_sapiens.GRCh38.ncrna.fa.gz > combined_contamination_reference.fa
+cat 4V6X_human_rRNAs.fa >> combined_contamination_reference.fa
+cat hg38-tRNAs.fa >> combined_contamination_reference.fa
+cat hg38-mature-tRNAs.fa >> combined_contamination_reference.fa
+
+#build bowtie index for combined contamination reference
+    bowtie2-build --threads 4 -f /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/combined_contamination_reference.fa /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/combined_contamination_index
+
+
+
+    #Remove contaminant RNAs from input files
+    # #ncRNA
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim2/new_trim2_SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/ncRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim2/new_trim2_SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/ncRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim2/new_trim2_SMP.325f44c03d11cfd66660ec304ba50677_1.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_1.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/ncRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/trim2/new_trim2_SMP.325f44c03d11cfd66660ec304ba50677_2.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_2.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/ncRNA_index
+
+
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_r_RNA_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/rRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_r_RNA_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/rRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_1.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_r_RNA_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_1.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/rRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_2.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_r_RNA_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_2.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/rRNA_index
+
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_r_RNA_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_t_RNA_no_r_RNA_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/tRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_r_RNA_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_t_RNA_no_r_RNA_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/tRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_r_RNA_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_1.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_t_RNA_no_r_RNA_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_1.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/tRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_r_RNA_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_2.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_t_RNA_no_r_RNA_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_2.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/tRNA_index
+
+
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_t_RNA_no_r_RNA_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_contaminating_RNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_1.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/maturetRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_t_RNA_no_r_RNA_no_ncRNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_contaminating_RNA_SMP.90cddc3a9608fab90fac3f2aaec328c0_2.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/maturetRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_t_RNA_no_r_RNA_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_1.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_contaminating_RNA_SMP.325f44c03d11cfd66660ec304ba50677_1.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/maturetRNA_index
+    # bowtie2 --threads 4 -N 1 --no-1mm-upfront -q /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_t_RNA_no_r_RNA_no_ncRNA_SMP.325f44c03d11cfd66660ec304ba50677_2.fastq --un /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/bowtie_index/new_no_contaminating_RNA_SMP.325f44c03d11cfd66660ec304ba50677_2.fastq -x /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/maturetRNA_index
+
+    #azcopy cp 'https://envreferences.blob.core.windows.net/references/homo_sapiens/gencode/gencode.v4.pc_transcripts.fa.gz' /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/
+
+#Step5: Align using STAR
+
+STAR --runThreadN 8 \
+  --runMode genomeGenerate \
+  --genomeDir /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/GenomeDir_rebuild/refseq \
+  --genomeFastaFiles /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/GCF_000001405.38_GRCh38.p12_genomic.fna \
+  --sjdbGTFfile /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_align/GCF_000001405.38_GRCh38.p12_genomic.gtf.gz \
+  --sjdbOverhang 100
+
+
+
+# STAR --runThreadN 8 \
+#   --runMode genomeGenerate \
+#   --genomeDir /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_transcriptome/STAR_genome_index \
+#   --genomeFastaFiles /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_transcriptome/GRCh38.p14.genome.fa \
+#   --sjdbGTFfile /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/STAR_transcriptome/gencode.v49.chr_patch_hapl_scaff.annotation.gtf \
+#   --sjdbOverhang 100 \
+#   --limitGenomeGenerateRAM 383112002144
+
+
+
+
+
+
+STAR --runThreadN 8 \
+  --genomeDir /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/GenomeDir_rebuild/ \
+  --readFilesIn /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H661.1.fastq.gz \
+                /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H661.2.fastq.gz \
+  --readFilesCommand zcat \
+  --outFileNamePrefix /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/final_bam/H661_ \
+  --outSAMtype BAM SortedByCoordinate \
+  --quantMode TranscriptomeSAM GeneCounts \
+  --outSAMattributes NH HI AS NM MD jM jI XS \
+  --outTmpDir /home/fsartori/tmpH661/
+
+
+STAR --runThreadN 8 \
+  --genomeDir /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/GenomeDir_rebuild/ \
+  --readFilesIn /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H1573.1.fastq.gz \
+  /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H1573.2.fastq.gz \
+  --readFilesCommand zcat \
+  --outFileNamePrefix /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/final_bam/H1573_   \
+  --outSAMtype BAM SortedByCoordinate   \
+  --quantMode TranscriptomeSAM GeneCounts   \
+  --outSAMattributes NH HI AS NM MD jM jI XS   \
+  --outTmpDir /home/fsartori/tmpH1573/
+
+
+
+#refseq alignment
+
+STAR --runThreadN 8 \
+  --genomeDir /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/GenomeDir_rebuild/refseq/ \
+  --readFilesIn /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H661.1.fastq.gz \
+                /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H661.2.fastq.gz \
+  --readFilesCommand zcat \
+  --outFileNamePrefix /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/refseq_aligned/H661_ \
+  --outSAMtype BAM SortedByCoordinate \
+  --quantMode TranscriptomeSAM GeneCounts \
+  --outSAMattributes NH HI AS NM MD jM jI XS \
+  --outTmpDir /home/fsartori/tmpH661/
+
+
+
+STAR --runThreadN 8 \
+  --genomeDir /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/GenomeDir_rebuild/refseq/ \
+  --readFilesIn /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H1573.1.fastq.gz \
+                /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H1573.2.fastq.gz \
+  --readFilesCommand zcat \
+  --outFileNamePrefix /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/refseq_aligned/H1573_ \
+  --outSAMtype BAM SortedByCoordinate \
+  --quantMode TranscriptomeSAM GeneCounts \
+  --outSAMattributes NH HI AS NM MD jM jI XS \
+  --outTmpDir /home/fsartori/tmpH1573/
+
+
+
+#More permissive alignment script for short Polysome Profiling reads:
+
+# STAR \
+#   --runThreadN 4 \
+#   --genomeDir /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/GenomeDir_rebuild/  \
+#   --readFilesIn /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H1573.1.fastq.gz \
+#   /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H1573.2.fastq.gz \
+#   --readFilesCommand zcat \
+#   --outFileNamePrefix /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/relaxed_alignment/H1573_ \
+#   --outSAMtype BAM Unsorted  \
+#   --outFilterScoreMinOverLread 0.30 \
+#   --outFilterMatchNminOverLread 0.30 \
+#   --outFilterMismatchNoverLmax 0.1 \
+#   --outFilterMultimapNmax 50 \
+#   --winAnchorMultimapNmax 100 \
+#   --alignEndsType Local \
+#   --limitBAMsortRAM 8000000000 \
+#   --outSAMattributes NH HI AS nM XS \
+#   --quantMode TranscriptomeSAM GeneCounts   \
+#   --outTmpDir  /home/fsartori/tmpH1573_relaxed/
+
+
+
+
+# STAR \
+#   --runThreadN 4 \
+#   --genomeDir /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/GenomeDir_rebuild/  \
+#   --readFilesIn /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H661.1.fastq.gz \
+#   /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/contamination_removal/no_contamination_H661.2.fastq.gz \
+#   --readFilesCommand zcat \
+#   --outFileNamePrefix /mnt/targetdiscovery/lung/polysome_profiling_H661_H1573/relaxed_alignment/H661_ \
+#   --outSAMtype BAM Unsorted  \
+#   --outFilterScoreMinOverLread 0.30 \
+#   --outFilterMatchNminOverLread 0.30 \
+#   --outFilterMismatchNoverLmax 0.1 \
+#   --outFilterMultimapNmax 50 \
+#   --winAnchorMultimapNmax 100 \
+#   --alignEndsType Local \
+#   --limitBAMsortRAM 8000000000 \
+#   --outSAMattributes NH HI AS nM XS \
+#   --quantMode TranscriptomeSAM GeneCounts   \
+#   --outTmpDir  /home/fsartori/tmpH661_relaxed/
